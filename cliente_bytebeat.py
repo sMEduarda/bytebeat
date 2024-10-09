@@ -1,20 +1,17 @@
 import tkinter
-from tkinter.ttk import Progressbar
 import customtkinter
 import pygame
-from PIL import Image, ImageTk
 from threading import Thread
-import time
-import math
 import socket
 import io
 import os
+import time
+import math
 
-# Configurações do CustomTkinter
-customtkinter.set_appearance_mode("dark")  # Modos: system (padrão), light, dark
-customtkinter.set_default_color_theme("dark-blue")  # Temas: blue (padrão), dark-blue, green
+customtkinter.set_appearance_mode("dark")  # Modes: system (default), light, dark
+customtkinter.set_default_color_theme("dark-blue")  # Themes: blue (default), dark-blue, green
 
-##### Tkinter stuff ######
+##### Tkinter setup ######
 root = customtkinter.CTk()
 root.title('Music Player')
 root.geometry('400x480')
@@ -36,39 +33,41 @@ def receive_music_from_server(host='192.168.29.37', port=65432):
     client_socket.close()
     return music_data
 
+# Função para tocar a música
 def play_music_thread():
     global music_data, is_playing
-
     if music_data is None or len(music_data) == 0:
         print("Erro: Nenhum dado de música para reproduzir.")
         is_playing = False
         return
 
-    music_stream = io.BytesIO(music_data)
-    temp_file = 'temp_music.mp3'
+    # Criação do arquivo temporário no diretório de trabalho atual
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    temp_file = os.path.join(current_directory, 'temp_music.mp3')
 
     try:
+        # Salva a música no diretório atual
         with open(temp_file, 'wb') as f:
             f.write(music_data)
-
-        pygame.mixer.music.load(temp_file)
-        pygame.mixer.music.play()
-        while pygame.mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
+        
+        # Verifica se o arquivo foi criado com sucesso
+        if os.path.exists(temp_file):  # Certifica-se de que o arquivo foi criado
+            print(f"Arquivo {temp_file} salvo com sucesso.")
+            pygame.mixer.music.load(temp_file)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
+        else:
+            print(f"Erro: Arquivo {temp_file} não encontrado.")
     except Exception as e:
         print(f"Erro ao tentar reproduzir a música: {e}")
     finally:
         is_playing = False
+        # Após a reprodução, remove o arquivo temporário
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
-def play_music():
-    global is_playing
-    if not is_playing:
-        is_playing = True
-        play_thread = Thread(target=play_music_thread)
-        play_thread.start()
-
+# Função para parar a música
 def stop_music():
     global is_playing
     pygame.mixer.music.stop()
@@ -80,41 +79,57 @@ music_data = receive_music_from_server()
 is_playing = False
 
 # Salva o arquivo recebido para depuração ou uso posterior
-with open("countdown.mp3", "wb") as f:
+current_directory = os.path.dirname(os.path.abspath(__file__))
+temp_music_path = os.path.join(current_directory, "countdown.mp3")
+
+with open(temp_music_path, "wb") as f:
     f.write(music_data)
 
-list_of_songs = ['temp_music.mp3']  # Lista de músicas
+# Verifica se os dados de música foram recebidos corretamente
+if not music_data:
+    print("Erro: Nenhum dado de música recebido.")
+else:
+    print("Música recebida com sucesso!")
+
+list_of_songs = [temp_music_path]  # Lista de músicas, a primeira será tocada
 n = 0
 
+# Função de progresso (apenas ilustrativa, sem relação direta com o problema atual)
 def progress():
     a = pygame.mixer.Sound(f'{list_of_songs[n]}')
     song_len = a.get_length() * 3
     for i in range(0, math.ceil(song_len)):
-        time.sleep(0.4)
+        time.sleep(.4)
 
 def threading_progress():
     t1 = Thread(target=progress)
     t1.start()
 
-def skip_forward():
+# Função para tocar a música atual
+def play_music():
     global n
-    if n < len(list_of_songs) - 1:
-        n += 1
-        play_music()
+    if len(list_of_songs) > 0:
+        song_name = list_of_songs[n]
+        if os.path.exists(song_name):  # Verifica se o arquivo existe antes de tocar
+            pygame.mixer.music.load(song_name)
+            pygame.mixer.music.play(loops=0)
+            pygame.mixer.music.set_volume(.5)
+        else:
+            print(f"Erro: Arquivo {song_name} não encontrado.")
 
-def skip_back():
-    global n
-    if n > 0:
-        n -= 1
-        play_music()
-
+# Função para ajustar o volume
 def volume(value):
     pygame.mixer.music.set_volume(float(value))
 
-# Botões e controles da interface
+# Botões
 play_button = customtkinter.CTkButton(master=root, text='Play', command=play_music)
 play_button.place(relx=0.5, rely=0.7, anchor=tkinter.CENTER)
 
+# Botão "Stop"
+stop_button = customtkinter.CTkButton(master=root, text='Stop', command=stop_music)
+stop_button.place(relx=0.5, rely=0.85, anchor=tkinter.CENTER)
+
+# Slider de volume
 slider = customtkinter.CTkSlider(master=root, from_=0, to=1, command=volume, width=210)
 slider.place(relx=0.5, rely=0.78, anchor=tkinter.CENTER)
 
